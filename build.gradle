@@ -105,6 +105,13 @@ android {
                 applicationId 'com.custom.client'
                 dimension "default"
             }
+
+            versionDev {
+                applicationId "com.nextcloud.android.beta"
+                dimension "default"
+                versionCode 20171113
+                versionName "20171113"
+            }
         }
 
         configurations {
@@ -124,6 +131,10 @@ android {
     packagingOptions {
         exclude 'META-INF/LICENSE.txt'
         exclude 'META-INF/LICENSE'
+    }
+
+    signingConfigs {
+        release
     }
 
     task checkstyle(type: Checkstyle) {
@@ -181,12 +192,27 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+
+}
+
+if (project.hasProperty('RELEASE_STORE_FILE')) {
+    android.signingConfigs.release.storeFile = file(RELEASE_STORE_FILE)
+    android.signingConfigs.release.storePassword = RELEASE_STORE_PASSWORD
+    android.signingConfigs.release.keyAlias = RELEASE_KEY_ALIAS
+    android.signingConfigs.release.keyPassword = RELEASE_KEY_PASSWORD
 }
 
 dependencies {
     /// dependencies for app building
     implementation 'com.android.support:multidex:1.0.2'
-    compile 'com.github.nextcloud:android-library:1.0.31'
+    implementation 'com.github.nextcloud:android-library:1.0.31'
+    versionDevImplementation 'com.github.nextcloud:android-library:master-SNAPSHOT'
     implementation "com.android.support:support-v4:${supportLibraryVersion}"
     implementation "com.android.support:design:${supportLibraryVersion}"
     implementation 'com.jakewharton:disklrucache:2.0.2'

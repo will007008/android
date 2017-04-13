@@ -34,6 +34,7 @@ import android.content.res.Configuration;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -55,6 +56,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import com.owncloud.android.BuildConfig;
 import com.owncloud.android.MainApp;
@@ -73,7 +75,11 @@ import com.owncloud.android.utils.AnalyticsUtils;
 import com.owncloud.android.utils.DisplayUtils;
 import com.owncloud.android.utils.ThemeUtils;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.concurrent.ExecutionException;
 
 /**
  * An Activity that allows the user to change the application's settings.
@@ -159,6 +165,63 @@ public class Preferences extends PreferenceActivity
 
         // About
         setupAboutCategory(accentColor, appVersion);
+        
+        // Dev
+        setupDevCategory(accentColor, preferenceScreen);
+    }
+
+    private void setupDevCategory(int accentColor, PreferenceScreen preferenceScreen) {
+        // Dev category
+        PreferenceCategory preferenceCategoryDev = (PreferenceCategory) findPreference("dev_category");
+
+        if (getResources().getBoolean(R.bool.is_beta)) {
+            preferenceCategoryDev.setTitle(ThemeUtils.getColoredTitle(getString(R.string.prefs_category_dev),
+                    accentColor));
+
+            /* Link to dev apks */
+            Preference pDevLink = findPreference("dev_link");
+            if (pDevLink != null) {
+                pDevLink.setOnPreferenceClickListener(preference -> {
+                    Integer latestVersion = -1;
+                    Integer currentVersion = -1;
+                    try {
+                        currentVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                        LoadingVersionNumberTask loadTask = new LoadingVersionNumberTask();
+                        loadTask.execute();
+                        latestVersion = loadTask.get();
+                    } catch (InterruptedException | ExecutionException | NameNotFoundException e) {
+                        Log_OC.e(TAG, "Error detecting app version", e);
+                    }
+                    if (latestVersion == -1 || currentVersion == -1) {
+                        Toast.makeText(getApplicationContext(), "No information available!", Toast.LENGTH_SHORT).show();
+                    }
+                    if (latestVersion > currentVersion) {
+                        String devApkLink = (String) getText(R.string.dev_link) + latestVersion + ".apk";
+                        Uri uriUrl = Uri.parse(devApkLink);
+                        Intent intent = new Intent(Intent.ACTION_VIEW, uriUrl);
+                        startActivity(intent);
+                        return true;
+                    } else {
+                        Toast.makeText(getApplicationContext(), "No new version available!", Toast.LENGTH_SHORT).show();
+                        return true;
+                    }
+                });
+            }
+
+            /* Link to dev changelog */
+            Preference pChangelogLink = findPreference("changelog_link");
+            if (pChangelogLink != null) {
+                pChangelogLink.setOnPreferenceClickListener(preference -> {
+                    String devChangelogLink = getString(R.string.dev_changelog);
+                    Uri uriUrl = Uri.parse(devChangelogLink);
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uriUrl);
+                    startActivity(intent);
+                    return true;
+                });
+            }
+        } else {
+            preferenceScreen.removePreference(preferenceCategoryDev);
+        }
     }
 
     private void setupAboutCategory(int accentColor, String appVersion) {
@@ -981,5 +1044,28 @@ public class Preferences extends PreferenceActivity
     @Override
     public void onCancelMigration() {
         // Migration was canceled so we don't do anything
+    }
+
+    /**
+     *
+     * Class for loading the version number
+     *
+     */
+    private class LoadingVersionNumberTask extends AsyncTask<Void, Void, Integer> {
+        protected Integer doInBackground(Void... args) {
+            try {
+                URL url = new URL(getString(R.string.dev_latest));
+                BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream()));
+
+                Integer latestVersion = Integer.parseInt(in.readLine());
+                in.close();
+
+                return latestVersion;
+
+            } catch (IOException e) {
+                Log_OC.e(TAG, "Error loading version number", e);
+            }
+            return -1;
+        }
     }
 }
